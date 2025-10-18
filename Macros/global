@@ -1,0 +1,354 @@
+
+Sub Macro1()
+'
+' Macro1 Macro
+'
+'
+ActiveDocument.PrintOut
+End Sub
+Sub Macro2()
+'
+' Macro2 Macro
+'
+'
+End Sub
+Sub CompileDocumentsFromFolder()
+'
+' CompileDocumentsFromFolder Macro
+'
+'
+
+End Sub
+Sub ImportXMLData()
+    Dim xmlDoc As Object
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument")
+    Dim sourceDoc As Document
+    Dim targetDoc As Document
+    Dim docfilePath As String, ai_declaration As String
+    Dim tagToFind As String
+    Dim filePath As String
+    Dim authorsList As String
+    Dim authorName As String
+    Dim authorNodes As Object
+    Dim affiliationsList As String
+    Dim uniqueAffiliations As Collection
+    Dim affiliation As String
+    Dim label As String
+    Dim i As Integer
+    Dim department As String, institute As String, address As String, city As String, zip As String, state As String, country As String
+    Dim tempDoc As Document
+    Dim para As Paragraph
+    
+    Dim rng As Range
+    
+    ' Target document where content will be inserted (active document)
+    Set targetDoc = ActiveDocument
+    
+    filePath = GetSelectedFilePath()
+    ' Load the XML file
+    xmlDoc.Load filePath
+
+    ' Replace the content in the document
+    ActiveDocument.Content.Find.Execute "<running_title>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/running_title").Text
+    ActiveDocument.Content.Find.Execute "<article_type>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/article_type").Text
+    ActiveDocument.Content.Find.Execute "<article_title>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/article_title").Text
+    ActiveDocument.Content.Find.Execute "<submission_date>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/submission_date").Text
+    ActiveDocument.Content.Find.Execute "<accepted_date>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/accepted_date").Text
+    ActiveDocument.Content.Find.Execute "<DOI>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/DOI").Text
+    ActiveDocument.Content.Find.Execute "<patient_consent>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/patient_consent").Text
+    ActiveDocument.Content.Find.Execute "<source_of_support>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/source_of_support").Text
+    ActiveDocument.Content.Find.Execute "<conflict_of_interest>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/conflict_of_interest").Text
+    ActiveDocument.Content.Find.Execute "<ethical_approval>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/ethical_approval").Text
+    
+    ' Create a new temporary document
+    Set tempDoc = Documents.Add
+    
+    ' Add the affiliationsList string into the temporary document
+    tempDoc.Content.InsertAfter xmlDoc.SelectSingleNode("//article/AI_Declaration").Text
+
+
+    ' Copy the content of the temporary document
+    tempDoc.Content.Copy
+
+    For Each para In targetDoc.Paragraphs
+        If InStr(para.Range.Text, "<ai_declaration>") > 0 Then
+            ' Replace <document> with the content of the source document
+            Set rng = para.Range
+            rng.Find.Execute FindText:="<ai_declaration>", ReplaceWith:=""
+            rng.PasteAndFormat (wdFormatOriginalFormatting)
+            ' Exit the loop after the replacement is done
+            Exit For
+        End If
+    Next para
+    
+    ' Close the temporary document without saving
+    tempDoc.Close SaveChanges:=wdDoNotSaveChanges
+
+    ' Cleanup
+    Set tempDoc = Nothing
+    
+    
+     ' Get all the <author> nodes from the XML
+    Set authorNodes = xmlDoc.getElementsByTagName("author")
+    
+    ' Initialize the collection to store unique affiliations
+    Set uniqueAffiliations = New Collection
+    
+    ' Create a new temporary document
+    Set tempDoc = Documents.Add
+    
+    ' Initialize the authors list as an empty string
+    authorsList = ""
+    
+    ' Loop through each <author> node and build the comma-separated list
+    For Each Author In authorNodes
+        ' Get the title, first name, middle name, and last name
+        authorName = Author.SelectSingleNode("title").Text & " " & _
+                    Author.SelectSingleNode("fname").Text & " " & _
+                    IIf(Not Author.SelectSingleNode("mname") Is Nothing, Author.SelectSingleNode("mname").Text & " ", "") & _
+                    Author.SelectSingleNode("lname").Text
+        
+        ' Add the author to the list, separated by a comma
+        If authorsList = "" Then
+            authorsList = authorName
+        Else
+            authorsList = authorsList & ", " & authorName
+        End If
+        department = Author.SelectSingleNode("department").Text
+        institute = Author.SelectSingleNode("institute").Text
+        address = Author.SelectSingleNode("address").Text
+        city = Author.SelectSingleNode("city").Text
+        zip = Author.SelectSingleNode("zip").Text
+        state = Author.SelectSingleNode("state").Text
+        country = Author.SelectSingleNode("country").Text
+        
+        ' Build the full affiliation string
+        affiliation = department & ", " & institute & ", " & address & ", " & city & ", " & zip & ", " & state & ", " & country
+        
+        ' Add the affiliation to the collection, ensuring uniqueness
+        On Error Resume Next ' Ignore errors (in case of duplicate items)
+        uniqueAffiliations.Add affiliation, CStr(affiliation)
+        On Error GoTo 0 ' Turn back on normal error handling
+    Next Author
+    
+    ' Initialize the output string for the formatted affiliations
+    affiliationsList = ""
+    
+    ' Loop through the unique affiliations and label them
+    For i = 1 To uniqueAffiliations.Count
+        label = Chr(64 + i) ' This gives us "a", "b", "c", etc.
+        If affiliationsList = "" Then
+            affiliationsList = label & uniqueAffiliations(i)
+        Else
+            affiliationsList = affiliationsList & vbCrLf & label & uniqueAffiliations(i)
+        End If
+    Next i
+    
+    For Each para In targetDoc.Paragraphs
+        If InStr(para.Range.Text, "<authors>") > 0 Then
+            ' Replace <document> with the content of the source document
+            Set rng = para.Range
+            rng.Find.Execute FindText:="<authors>", ReplaceWith:=authorsList
+            ' Exit the loop after the replacement is done
+            Exit For
+        End If
+    Next para
+    
+    ' Add the affiliationsList string into the temporary document
+    tempDoc.Content.InsertAfter affiliationsList
+
+    ' Copy the content of the temporary document
+    tempDoc.Content.Copy
+
+    For Each para In targetDoc.Paragraphs
+        If InStr(para.Range.Text, "<affiliations>") > 0 Then
+            ' Replace <document> with the content of the source document
+            Set rng = para.Range
+            rng.Find.Execute FindText:="<affiliations>", ReplaceWith:=""
+            rng.PasteAndFormat (wdFormatOriginalFormatting)
+            ' Exit the loop after the replacement is done
+            Exit For
+        End If
+    Next para
+    
+    ' Close the temporary document without saving
+    tempDoc.Close SaveChanges:=wdDoNotSaveChanges
+
+    ' Cleanup
+    Set tempDoc = Nothing
+    
+    filePath = GetSelectedFilePath()
+    
+    Set sourceDoc = Documents.Open(filePath)
+    
+    sourceDoc.Content.Copy
+    
+    ' Define the tag you want to search for in the target document
+    tagToFind = "<document>"  ' Modify this to your desired tag
+    
+    ' Find the tag in the target document
+    For Each para In targetDoc.Paragraphs
+        If InStr(para.Range.Text, "<document>") > 0 Then
+            ' Replace <document> with the content of the source document
+            Set rng = para.Range
+            rng.Find.Execute FindText:="<document>", ReplaceWith:=""
+            rng.PasteAndFormat (wdFormatOriginalFormatting)
+            ' Exit the loop after the replacement is done
+            Exit For
+        End If
+    Next para
+    
+    InsertMultipleImagesWithDialog
+    
+    ' Close the source document
+    sourceDoc.Close SaveChanges:=False
+    
+    MsgBox "Content insertion complete!"
+End Sub
+Sub InsertMultipleImagesWithDialog()
+    Dim fileDialog As fileDialog
+    Dim imageFiles As Variant
+    Dim i As Integer
+    Dim img As InlineShape
+    
+    ' Open the File Dialog for selecting multiple images
+    Set fileDialog = Application.fileDialog(msoFileDialogFilePicker)
+    fileDialog.Title = "Select Images"
+    fileDialog.AllowMultiSelect = True ' Allow multiple selections
+    fileDialog.Filters.Clear
+    fileDialog.Filters.Add "Image Files", "*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.tiff" ' Filter for image files
+    
+    ' Show the dialog box and check if the user selected files
+    If fileDialog.Show = -1 Then
+        ' Loop through each selected file
+        For i = 1 To fileDialog.SelectedItems.Count
+            ' Insert the image at the current cursor position
+            Set img = ActiveDocument.InlineShapes.AddPicture(fileName:=fileDialog.SelectedItems(i), _
+                                                             LinkToFile:=False, _
+                                                             SaveWithDocument:=True)
+            ' Optionally, add a line break after each image
+            Selection.TypeParagraph
+        Next i
+    Else
+        MsgBox "No images selected.", vbInformation
+    End If
+End Sub
+
+Private Function GetSelectedFilePath() As String
+    Dim fileDialog As fileDialog
+
+    Set fileDialog = Application.fileDialog(msoFileDialogOpen)
+    
+    ' Show the dialog box to the user
+    If fileDialog.Show = -1 Then
+        ' If the user selects a file, get the file path
+        GetSelectedFilePath = fileDialog.SelectedItems(1)
+        MsgBox "You selected: " & GetSelectedFilePath
+    Else
+        GetSelectedFilePath = ""
+        MsgBox "No file was selected."
+    End If
+    
+    
+    ' Clean up
+    Set fileDialog = Nothing
+End Function
+
+Private Sub SelectMultipleFiles()
+    Dim fileDialog As fileDialog
+    Dim selectedFiles As Variant
+    Dim i As Integer
+    
+    ' Create a FileDialog object as Open File dialog
+    Set fileDialog = Application.fileDialog(msoFileDialogOpen)
+    
+    ' Allow the user to select multiple files
+    fileDialog.AllowMultiSelect = True
+    
+    ' Show the dialog box to the user
+    If fileDialog.Show = -1 Then
+        ' If the user selects files, loop through them and display their paths
+        For i = 1 To fileDialog.SelectedItems.Count
+            MsgBox "You selected: " & fileDialog.SelectedItems(i)
+        Next i
+    Else
+        MsgBox "No files were selected."
+    End If
+    
+    ' Clean up
+    Set fileDialog = Nothing
+End Sub
+
+Sub ExportUpdatedXML()
+    Dim xmlPart As CustomXMLPart
+    Dim fileNum As Integer
+    Dim filePath As String
+    
+    ' Set your desired file path
+    filePath = Environ("USERPROFILE") & "\Desktop\ExportedXML.xml"
+    
+    ' Export the first custom XML part
+    If ActiveDocument.CustomXMLParts.Count > 0 Then
+        Set xmlPart = ActiveDocument.CustomXMLParts(5)
+        
+        fileNum = FreeFile
+        Open filePath For Output As #fileNum
+        Print #fileNum, xmlPart.XML
+        Close #fileNum
+        
+        MsgBox "XML exported to: " & filePath
+    Else
+        MsgBox "No Custom XML Part found in this document."
+    End If
+End Sub
+
+Sub ShowPopulatedXML()
+    Dim xmlPart As CustomXMLPart
+    Set xmlPart = ActiveDocument.CustomXMLParts(5)
+    Debug.Print xmlPart.XML
+End Sub
+
+
+Sub Extract_Tables_From_Doc()
+    Dim fd As fileDialog
+    Dim selectedFile As String
+    Dim sourceDoc As Document
+    Dim targetDoc As Document
+    Dim tbl As Table
+    Dim savePath As String
+    Dim i As Long
+    
+    ' Ask user to select a Word document
+    Set fd = Application.fileDialog(msoFileDialogFilePicker)
+    fd.Title = "Select a Word Document"
+    fd.Filters.Clear
+    fd.Filters.Add "Word Documents", "*.docx; *.docm; *.doc"
+    
+    If fd.Show <> -1 Then Exit Sub ' user cancelled
+    selectedFile = fd.SelectedItems(1)
+    
+    ' Open the selected document (read-only)
+    Set sourceDoc = Documents.Open(selectedFile, ReadOnly:=True)
+    
+    ' Create a new document for tables
+    Set targetDoc = Documents.Add
+    
+    ' Copy each table
+    For i = 1 To sourceDoc.Tables.Count
+        sourceDoc.Tables(i).Range.Copy
+        targetDoc.Range(targetDoc.Content.End - 1).Paste
+        targetDoc.Range.InsertParagraphAfter
+        targetDoc.Range.InsertParagraphAfter
+    Next i
+    
+    ' Build save path in same folder as source
+    savePath = Left(selectedFile, InStrRev(selectedFile, "\")) & "Tables.docx"
+    
+    ' Save the new document
+    targetDoc.SaveAs2 savePath, FileFormat:=wdFormatXMLDocument
+    targetDoc.Close
+    sourceDoc.Close SaveChanges:=False
+    
+    MsgBox "All tables have been extracted and saved as:" & vbCrLf & savePath, vbInformation
+End Sub
+

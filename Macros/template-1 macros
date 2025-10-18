@@ -1,0 +1,959 @@
+'Sub CompileData()
+'    Dim xmlDoc As Object
+'    Set xmlDoc = CreateObject("MSXML2.DOMDocument")
+'    Dim sourceDoc As Document
+'    Dim targetDoc As Document
+'    Dim docfilePath As String, ai_declaration As String
+'    Dim tagToFind As String
+'    Dim filePath As String
+'    Dim authorsList As String
+'    Dim authorName As String
+'    Dim authorNodes As Object
+'    Dim affiliationsList As String
+'    Dim uniqueAffiliations As Collection
+'    Dim affiliation As String
+'    Dim label As String
+'    Dim i As Integer
+'    Dim department As String, institute As String, address As String, city As String, zip As String, state As String, country As String
+'    Dim tempDoc As Document
+'    Dim para As Paragraph
+'
+'    Dim rng As Range
+'
+'    ' Target document where content will be inserted (active document)
+'    Set targetDoc = ActiveDocument
+'
+'    filePath = GetSelectedFilePath()
+'    ' Load the XML file
+'    xmlDoc.Load filePath
+'
+'    ' Replace the content in the document
+'    ActiveDocument.content.Find.Execute "<running_title>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/running_title").Text
+'    ActiveDocument.content.Find.Execute "<article_type>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/article_type").Text
+'    ActiveDocument.content.Find.Execute "<article_title>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/article_title").Text
+'    ActiveDocument.content.Find.Execute "<submission_date>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/submission_date").Text
+'    ActiveDocument.content.Find.Execute "<accepted_date>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/accepted_date").Text
+'    ActiveDocument.content.Find.Execute "<DOI>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/DOI").Text
+'    ActiveDocument.content.Find.Execute "<patient_consent>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/patient_consent").Text
+'    ActiveDocument.content.Find.Execute "<source_of_support>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/source_of_support").Text
+'    ActiveDocument.content.Find.Execute "<conflict_of_interest>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/conflict_of_interest").Text
+'    ActiveDocument.content.Find.Execute "<ethical_approval>", Replace:=wdReplaceOne, ReplaceWith:=xmlDoc.SelectSingleNode("//article/ethical_approval").Text
+'
+'    ' Create a new temporary document
+'    Set tempDoc = Documents.Add
+'
+'    ' Add the affiliationsList string into the temporary document
+'    tempDoc.content.InsertAfter xmlDoc.SelectSingleNode("//article/AI_Declaration").Text
+'
+'
+'    ' Copy the content of the temporary document
+'    tempDoc.content.Copy
+'
+'    For Each para In targetDoc.Paragraphs
+'        If InStr(para.Range.Text, "<ai_declaration>") > 0 Then
+'            ' Replace <document> with the content of the source document
+'            Set rng = para.Range
+'            rng.Find.Execute FindText:="<ai_declaration>", ReplaceWith:=""
+'            rng.PasteAndFormat (wdFormatOriginalFormatting)
+'            ' Exit the loop after the replacement is done
+'            Exit For
+'        End If
+'    Next para
+'
+'    ' Close the temporary document without saving
+'    tempDoc.Close SaveChanges:=wdDoNotSaveChanges
+'
+'    ' Cleanup
+'    Set tempDoc = Nothing
+'
+'
+'     ' Get all the <author> nodes from the XML
+'    Set authorNodes = xmlDoc.getElementsByTagName("author")
+'
+'    ' Initialize the collection to store unique affiliations
+'    Set uniqueAffiliations = New Collection
+'
+'    ' Create a new temporary document
+'    Set tempDoc = Documents.Add
+'
+'    ' Initialize the authors list as an empty string
+'    authorsList = ""
+'
+'    ' Loop through each <author> node and build the comma-separated list
+'    For Each author In authorNodes
+'        ' Get the title, first name, middle name, and last name
+'        authorName = author.SelectSingleNode("title").Text & " " & _
+'                    author.SelectSingleNode("fname").Text & " " & _
+'                    IIf(Not author.SelectSingleNode("mname") Is Nothing, author.SelectSingleNode("mname").Text & " ", "") & _
+'                    author.SelectSingleNode("lname").Text
+'
+'        ' Add the author to the list, separated by a comma
+'        If authorsList = "" Then
+'            authorsList = authorName
+'        Else
+'            authorsList = authorsList & ", " & authorName
+'        End If
+'        department = author.SelectSingleNode("department").Text
+'        institute = author.SelectSingleNode("institute").Text
+'        address = author.SelectSingleNode("address").Text
+'        city = author.SelectSingleNode("city").Text
+'        zip = author.SelectSingleNode("zip").Text
+'        state = author.SelectSingleNode("state").Text
+'        country = author.SelectSingleNode("country").Text
+'
+'        ' Build the full affiliation string
+'        affiliation = department & ", " & institute & ", " & address & ", " & city & ", " & zip & ", " & state & ", " & country
+'
+'        ' Add the affiliation to the collection, ensuring uniqueness
+'        On Error Resume Next ' Ignore errors (in case of duplicate items)
+'        uniqueAffiliations.Add affiliation, CStr(affiliation)
+'        On Error GoTo 0 ' Turn back on normal error handling
+'    Next author
+'
+'    ' Initialize the output string for the formatted affiliations
+'    affiliationsList = ""
+'
+'    ' Loop through the unique affiliations and label them
+'    For i = 1 To uniqueAffiliations.Count
+'        label = Chr(64 + i) ' This gives us "a", "b", "c", etc.
+'        If affiliationsList = "" Then
+'            affiliationsList = label & uniqueAffiliations(i)
+'        Else
+'            affiliationsList = affiliationsList & vbCrLf & label & uniqueAffiliations(i)
+'        End If
+'    Next i
+'
+'    For Each para In targetDoc.Paragraphs
+'        If InStr(para.Range.Text, "<authors>") > 0 Then
+'            ' Replace <document> with the content of the source document
+'            Set rng = para.Range
+'            rng.Find.Execute FindText:="<authors>", ReplaceWith:=authorsList
+'            ' Exit the loop after the replacement is done
+'            Exit For
+'        End If
+'    Next para
+'
+'    ' Add the affiliationsList string into the temporary document
+'    tempDoc.content.InsertAfter affiliationsList
+'
+'    ' Copy the content of the temporary document
+'    tempDoc.content.Copy
+'
+'    For Each para In targetDoc.Paragraphs
+'        If InStr(para.Range.Text, "<affiliations>") > 0 Then
+'            ' Replace <document> with the content of the source document
+'            Set rng = para.Range
+'            rng.Find.Execute FindText:="<affiliations>", ReplaceWith:=""
+'            rng.PasteAndFormat (wdFormatOriginalFormatting)
+'            ' Exit the loop after the replacement is done
+'            Exit For
+'        End If
+'    Next para
+'
+'    ' Close the temporary document without saving
+'    tempDoc.Close SaveChanges:=wdDoNotSaveChanges
+'
+'    ' Cleanup
+'    Set tempDoc = Nothing
+'
+'    filePath = GetSelectedFilePath()
+'
+'    Set sourceDoc = Documents.Open(filePath)
+'
+'    sourceDoc.content.Copy
+'
+'    ' Define the tag you want to search for in the target document
+'    tagToFind = "<document>"  ' Modify this to your desired tag
+'
+'    ' Find the tag in the target document
+'    For Each para In targetDoc.Paragraphs
+'        If InStr(para.Range.Text, "<document>") > 0 Then
+'            ' Replace <document> with the content of the source document
+'            Set rng = para.Range
+'            rng.Find.Execute FindText:="<document>", ReplaceWith:=""
+'            rng.PasteAndFormat (wdFormatOriginalFormatting)
+'            ' Exit the loop after the replacement is done
+'            Exit For
+'        End If
+'    Next para
+'
+'    ' Close the source document
+'    sourceDoc.Close SaveChanges:=False
+'
+'    InsertMultipleImagesWithDialog
+'
+'    MsgBox "Content insertion complete!"
+'End Sub
+Sub CompileData()
+    On Error GoTo ErrHandler
+
+    Dim xmlDoc As Object
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Async = False
+    xmlDoc.ValidateOnParse = False
+
+    Dim targetDoc As Document
+    Set targetDoc = ActiveDocument
+
+    Dim filePath As String
+    filePath = GetSelectedFilePath()
+    If filePath = "" Then
+        MsgBox "No file selected.", vbExclamation
+        Exit Sub
+    End If
+
+    If Not xmlDoc.Load(filePath) Then
+        MsgBox "Failed to load XML file.", vbCritical
+        Exit Sub
+    End If
+
+    ' Replace single node placeholders
+    ReplaceTag targetDoc, "<running_title>", GetNodeText(xmlDoc, "//article/running_title")
+    ReplaceTag targetDoc, "<article_type>", GetNodeText(xmlDoc, "//article/article_type")
+    ReplaceTag targetDoc, "<article_title>", GetNodeText(xmlDoc, "//article/article_title")
+    ReplaceTag targetDoc, "<submission_date>", GetNodeText(xmlDoc, "//article/submission_date")
+    ReplaceTag targetDoc, "<accepted_date>", GetNodeText(xmlDoc, "//article/accepted_date")
+    ReplaceTag targetDoc, "<DOI>", GetNodeText(xmlDoc, "//article/DOI")
+    ReplaceTag targetDoc, "<patient_consent>", GetNodeText(xmlDoc, "//article/patient_consent")
+    ReplaceTag targetDoc, "<source_of_support>", GetNodeText(xmlDoc, "//article/source_of_support")
+    ReplaceTag targetDoc, "<conflict_of_interest>", GetNodeText(xmlDoc, "//article/conflict_of_interest")
+    ReplaceTag targetDoc, "<ethical_approval>", GetNodeText(xmlDoc, "//article/ethical_approval")
+
+    ' Insert AI declaration
+    InsertBlockContent targetDoc, "<ai_declaration>", GetNodeText(xmlDoc, "//article/AI_Declaration")
+
+    ' Build authors and affiliations
+    Dim authorsList As String, affiliationsList As String
+    Dim correspondingAuthorInfo As String
+'    Dim uniqueAffiliations As New Collection
+    BuildAuthorsAndAffiliations xmlDoc, authorsList, affiliationsList, correspondingAuthorInfo
+
+    ReplaceTag targetDoc, "<authors>", authorsList
+    InsertBlockContent targetDoc, "<affiliations>", affiliationsList
+    ReplaceTag targetDoc, "<corresponding_author>", correspondingAuthorInfo
+'    Call InsertAffiliationsWithSuperscript(targetDoc, "<affiliations>", uniqueAffiliations)
+
+
+    ' Insert main document content
+    filePath = GetSelectedFilePath()
+    If filePath <> "" Then
+        InsertFileContentAtTag targetDoc, "<document>", filePath
+    End If
+
+    ' Insert images
+    Call InsertArticleCitation(xmlDoc, targetDoc)
+'    InsertMultipleImagesWithDialog
+'    InsertImagesBeforeFigureDescriptions
+
+    MsgBox "Content insertion complete!"
+    Exit Sub
+
+ErrHandler:
+    MsgBox "An error occurred: " & Err.Description, vbCritical
+End Sub
+
+'===============================
+' Utility: Replace inline tag with text
+'===============================
+Sub ReplaceTag(doc As Document, tag As String, replacement As String)
+    If replacement = "" Then replacement = "-"
+    With doc.content.Find
+        .text = tag
+        .replacement.text = replacement
+        .Execute Replace:=wdReplaceAll
+    End With
+End Sub
+
+'===============================
+' Utility: Insert multiline content (e.g., AI declaration, affiliations)
+'===============================
+Sub InsertBlockContent(doc As Document, tag As String, content As String)
+    Dim para As Paragraph, rng As Range
+    For Each para In doc.Paragraphs
+        If InStr(para.Range.text, tag) > 0 Then
+            Set rng = para.Range
+            rng.Find.Execute FindText:=tag, ReplaceWith:=""
+            rng.text = content
+            Exit For
+        End If
+    Next para
+End Sub
+
+'===============================
+' Utility: Load node text safely
+'===============================
+Function GetNodeText(xmlDoc As Object, xpath As String) As String
+    On Error Resume Next
+    GetNodeText = xmlDoc.SelectSingleNode(xpath).text
+    If Err.Number <> 0 Then GetNodeText = ""
+    On Error GoTo 0
+End Function
+
+'===============================
+' Utility: Build authors and affiliations
+'===============================
+Sub BuildAuthorsAndAffiliations(xmlDoc As Object, ByRef authorsList As String, ByRef affiliationsList As String, ByRef correspondingAuthorInfo As String)
+    Dim authorNodes As Object, author As Object
+    Dim authorName As String, affiliation As String
+    Dim uniqueAffiliations As New Collection
+    Dim i As Integer
+    Dim tempDoc As Document
+    Dim rngStart As Range, rngNumber As Range
+
+    Set authorNodes = xmlDoc.getElementsByTagName("author")
+    authorsList = ""
+    correspondingAuthorInfo = ""
+
+    ' Build comma-separated author names
+    For Each author In authorNodes
+        On Error Resume Next
+        authorName = Join(Filter(Array( _
+            GetSafe(author, "fname"), _
+            GetSafe(author, "mname"), _
+            GetSafe(author, "lname")), ""), " ")
+
+        If authorsList = "" Then
+            authorsList = authorName
+        Else
+            authorsList = authorsList & ", " & authorName
+        End If
+
+        affiliation = Join(Array( _
+            GetSafe(author, "department"), _
+            GetSafe(author, "institute"), _
+            GetSafe(author, "address"), _
+            GetSafe(author, "city"), _
+            GetSafe(author, "zip"), _
+            GetSafe(author, "state"), _
+            GetSafe(author, "country")), ", ")
+
+        On Error Resume Next
+        uniqueAffiliations.Add affiliation, affiliation
+        On Error GoTo 0
+        
+        isCorresponding = GetSafe(author, "corresponding")
+        If LCase(isCorresponding) = "yes" Then
+            Email = GetSafe(author, "email")
+            correspondingAuthorInfo = authorName & ", " & affiliation & ", " & Email
+        End If
+    Next author
+
+    ' Use temp doc to insert and format correctly
+    Set tempDoc = Documents.Add(Visible:=False)
+
+    For i = 1 To uniqueAffiliations.Count
+        Set rngStart = tempDoc.content
+        rngStart.Collapse Direction:=wdCollapseEnd
+
+        ' Insert number
+        rngStart.InsertAfter CStr(i)
+
+        ' Set range to the number just inserted
+        Set rngNumber = tempDoc.Range(rngStart.Start, rngStart.Start + Len(CStr(i)))
+        rngNumber.Font.Superscript = True
+
+        ' Insert the affiliation text directly after the number
+        rngNumber.Collapse Direction:=wdCollapseEnd
+        rngNumber.InsertAfter uniqueAffiliations(i) & vbCrLf
+    Next i
+
+    affiliationsList = tempDoc.content.text
+    tempDoc.Close SaveChanges:=False
+End Sub
+Sub InsertAffiliationsWithSuperscript(doc As Document, tag As String, uniqueAffiliations As Collection)
+    Dim para As Paragraph, rng As Range
+    Dim i As Integer
+
+    For Each para In doc.Paragraphs
+        If InStr(para.Range.text, tag) > 0 Then
+            Set rng = para.Range
+            rng.Find.Execute FindText:=tag, ReplaceWith:=""
+            rng.Delete ' Remove tag placeholder
+
+            For i = 1 To uniqueAffiliations.Count
+                ' Insert superscript number
+                rng.InsertAfter CStr(i)
+                rng.MoveEnd wdCharacter, -Len(CStr(i))
+                rng.Font.Superscript = True
+
+                ' Insert affiliation text
+                rng.Collapse Direction:=wdCollapseEnd
+                rng.Font.Superscript = False
+                rng.InsertAfter uniqueAffiliations(i) & vbCrLf
+                rng.Collapse Direction:=wdCollapseEnd
+            Next i
+            Exit For
+        End If
+    Next para
+End Sub
+Sub InsertArticleCitation(xmlDoc As Object, doc As Document)
+    Dim authorNodes As Object, author As Object
+    Dim citationAuthors As String, citationLine As String
+    Dim title As String, doi As String
+    Dim fname As String, mname As String, lname As String
+    Dim initials As String
+
+    Set authorNodes = xmlDoc.getElementsByTagName("author")
+    citationAuthors = ""
+
+    For Each author In authorNodes
+        fname = Trim(GetSafe(author, "fname"))
+        mname = Trim(GetSafe(author, "mname"))
+        lname = Trim(GetSafe(author, "lname"))
+
+        initials = ""
+        If fname <> "" Then initials = initials & UCase(Left(fname, 1))
+        If mname <> "" Then initials = initials & UCase(Left(mname, 1))
+
+        If citationAuthors = "" Then
+            citationAuthors = lname & " " & initials
+        Else
+            citationAuthors = citationAuthors & ", " & lname & " " & initials
+        End If
+    Next author
+
+    title = GetNodeText(xmlDoc, "//article/article_title")
+    doi = GetNodeText(xmlDoc, "//article/DOI")
+
+    citationLine = citationAuthors & ". " & title & ". doi: " & doi
+
+    ' Replace in document
+    Call InsertBlockContent(doc, "<article_citation>", citationLine)
+End Sub
+
+
+'===============================
+' Utility: Get child text safely
+'===============================
+Function GetSafe(parent As Object, tagName As String) As String
+    On Error Resume Next
+    GetSafe = parent.SelectSingleNode(tagName).text
+    If Err.Number <> 0 Then GetSafe = ""
+    On Error GoTo 0
+End Function
+
+'===============================
+' Utility: Insert full file at tag
+'===============================
+Sub InsertFileContentAtTag(doc As Document, tag As String, filePath As String)
+    Dim para As Paragraph, rng As Range
+    Dim tempDoc As Document
+
+    Set tempDoc = Documents.Open(filePath, Visible:=False)
+    tempDoc.content.Copy
+
+    For Each para In doc.Paragraphs
+        If InStr(para.Range.text, tag) > 0 Then
+            Set rng = para.Range
+            rng.Find.Execute FindText:=tag, ReplaceWith:=""
+            rng.PasteAndFormat (wdFormatOriginalFormatting)
+            Exit For
+        End If
+    Next para
+    tempDoc.Close SaveChanges:=False
+End Sub
+
+
+'' Utility function to replace tags safely
+'Sub ReplaceTag(tag As String, xmlNode As Object)
+'    On Error Resume Next
+'    If Not xmlNode Is Nothing Then
+'        ActiveDocument.content.Find.Execute FindText:=tag, ReplaceWith:=xmlNode.Text, Replace:=wdReplaceOne
+'    End If
+'    On Error GoTo 0
+'End Sub
+
+Private Sub InsertMultipleImagesWithDialog()
+    Dim fileDialog As fileDialog
+    Dim imageFiles As Variant
+    Dim i As Integer
+    Dim img As InlineShape
+    Dim rng As Range
+    Dim found As Boolean
+
+    ' Search for the <images> tag in the document
+    Set rng = ActiveDocument.content
+    With rng.Find
+        .text = "<images>"
+        .MatchCase = False
+        .MatchWholeWord = False
+        .MatchWildcards = False
+        .Wrap = wdFindStop
+        If .Execute Then
+            found = True
+        End If
+    End With
+
+    If Not found Then
+        MsgBox "No <images> tag found in the document.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Remove the <images> tag
+    rng.Delete
+
+    ' Open the File Dialog for selecting multiple images
+    Set fileDialog = Application.fileDialog(msoFileDialogFilePicker)
+    fileDialog.title = "Select Images"
+    fileDialog.AllowMultiSelect = True ' Allow multiple selections
+    fileDialog.Filters.Clear
+    fileDialog.Filters.Add "Image Files", "*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.tiff"
+
+    ' Show the dialog box and check if the user selected files
+    If fileDialog.Show = -1 Then
+        ' Loop through each selected file and insert at the tag's location
+        For i = 1 To fileDialog.SelectedItems.Count
+            Set img = ActiveDocument.InlineShapes.AddPicture( _
+                FileName:=fileDialog.SelectedItems(i), _
+                LinkToFile:=False, _
+                SaveWithDocument:=True, _
+                Range:=rng)
+
+            ' Move the range after the inserted image to prepare for next insert
+            rng.SetRange Start:=img.Range.End, End:=img.Range.End
+            rng.InsertParagraphAfter
+            rng.Collapse wdCollapseEnd
+        Next i
+    Else
+        MsgBox "No images selected.", vbInformation
+    End If
+End Sub
+
+Private Function GetSelectedFilePath() As String
+    Dim fileDialog As fileDialog
+
+    Set fileDialog = Application.fileDialog(msoFileDialogOpen)
+    
+    ' Show the dialog box to the user
+    If fileDialog.Show = -1 Then
+        ' If the user selects a file, get the file path
+        GetSelectedFilePath = fileDialog.SelectedItems(1)
+        MsgBox "You selected: " & GetSelectedFilePath
+    Else
+        GetSelectedFilePath = ""
+        MsgBox "No file was selected."
+    End If
+    
+    
+    ' Clean up
+    Set fileDialog = Nothing
+End Function
+
+Private Sub RemoveAllHighlighting()
+    Dim rng As Range
+    
+    ' Set the range to the entire document
+    Set rng = ActiveDocument.content
+    
+    ' Remove highlighting by setting it to 'wdNoHighlight'
+    rng.HighlightColorIndex = wdNoHighlight
+    
+    MsgBox "All highlighting has been removed.", vbInformation
+End Sub
+ 
+ Sub SortKeywordsPreserveLabelAndFont()
+    Dim para As Paragraph
+    Dim paraText As String
+    Dim keywordPrefix As String
+    Dim keywordPart As String
+    Dim keywords() As String
+    Dim i As Long, j As Long
+    Dim temp As String
+    Dim fullRange As Range
+    Dim labelRange As Range
+    Dim keywordRange As Range
+    Dim labelLength As Long
+    Dim paraFontName As String
+    Dim paraFontSize As Single
+
+    keywordPrefix = "Keywords:"
+    
+    ' Loop through paragraphs to find "Keywords:"
+    For Each para In ActiveDocument.Paragraphs
+        paraText = Trim(para.Range.text)
+        
+        If LCase(Left(paraText, Len(keywordPrefix))) = LCase(keywordPrefix) Then
+            ' Get the range excluding the paragraph mark
+            Set fullRange = para.Range
+            fullRange.End = fullRange.End - 1
+            
+            ' Save the paragraph font info
+            paraFontName = fullRange.Font.Name
+            paraFontSize = fullRange.Font.Size
+            
+            ' Extract and process keywords
+            keywordPart = Trim(Mid(paraText, Len(keywordPrefix) + 1))
+            keywords = Split(keywordPart, ",")
+            
+            For i = 0 To UBound(keywords)
+                keywords(i) = Trim(keywords(i))
+            Next i
+            
+            ' Sort keywords alphabetically
+            For i = 0 To UBound(keywords) - 1
+                For j = i + 1 To UBound(keywords)
+                    If StrComp(keywords(i), keywords(j), vbTextCompare) > 0 Then
+                        temp = keywords(i)
+                        keywords(i) = keywords(j)
+                        keywords(j) = temp
+                    End If
+                Next j
+            Next i
+            
+            ' Build sorted keyword string
+            Dim sortedKeywordText As String
+            sortedKeywordText = " " & Join(keywords, ", ")
+            
+            ' Define ranges for label and keyword
+            labelLength = Len(keywordPrefix)
+            Set labelRange = fullRange.Duplicate
+            labelRange.End = labelRange.Start + labelLength
+            
+            Set keywordRange = fullRange.Duplicate
+            keywordRange.Start = labelRange.End
+            
+            ' Replace keywords, keep font
+            keywordRange.text = sortedKeywordText
+            keywordRange.Font.Reset
+            keywordRange.Font.Bold = False
+            keywordRange.Font.Name = paraFontName
+            keywordRange.Font.Size = paraFontSize
+            
+            MsgBox "Keywords sorted. Formatting preserved.", vbInformation
+            Exit Sub
+        End If
+    Next para
+
+    MsgBox "No paragraph starting with 'Keywords:' found.", vbExclamation
+End Sub
+Sub MoveCitationsAfterSymbolsAndRemoveSpace()
+    Dim para As Paragraph
+    Dim re As Object
+    Dim matches As Object
+    Dim match As Object
+    Dim citationText As String
+    Dim rngReplace As Range
+    Dim symbol As String
+    Dim citationLen As Long
+
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.IgnoreCase = False
+
+    ' Match pattern: [1], [2;3] etc. with optional space before and a special symbol after (but [1] must come before symbol)
+    ' Captures: citation (group 1), symbol (group 3)
+    re.Pattern = "\s*(\[(\s*\d+[\s,;&]*\d*\s*)+\])(\s*)([.,:;!?])"
+
+    For Each para In ActiveDocument.Paragraphs
+        Dim paraText As String
+        paraText = para.Range.text
+
+        If re.Test(paraText) Then
+            Set matches = re.Execute(paraText)
+
+            Dim i As Long
+            For i = matches.Count - 1 To 0 Step -1
+                Set match = matches(i)
+                citationText = match.SubMatches(0) ' full [1], [2;3]
+                symbol = match.SubMatches(3)       ' the punctuation mark (e.g., . or ,)
+
+                Dim totalMatchStart As Long
+                totalMatchStart = para.Range.Start + match.FirstIndex
+                citationLen = Len(citationText)
+
+                ' Replace: [x] <space> symbol  --> symbol[citation]
+                Set rngReplace = ActiveDocument.Range( _
+                    Start:=totalMatchStart, _
+                    End:=totalMatchStart + Len(match.Value))
+
+                rngReplace.text = symbol & citationText
+
+                MsgBox rngReplace.text
+                
+                ' Apply superscript only to citation part (exclude the symbol)
+                Set rngReplace = ActiveDocument.Range( _
+                    Start:=totalMatchStart + 1, _
+                    End:=totalMatchStart + 1 + citationLen)
+
+                rngReplace.Font.Superscript = True
+            Next i
+        End If
+    Next para
+
+    MsgBox "Citations moved after punctuation and superscripted. Spaces before punctuation removed."
+End Sub
+
+
+
+
+
+
+Sub NormalizeFigureAndTableReferencesAccurately()
+    Dim para As Paragraph
+    Dim regEx As Object
+    Dim matches As Object
+    Dim matchItem As Object
+    Dim matchStart As Long, matchLen As Long
+    Dim matchRange As Range
+    Dim referenceText As String
+    Dim i As Long
+    Dim originalText As String
+
+    ' Create RegExp object
+    Set regEx = CreateObject("VBScript.RegExp")
+    regEx.Global = True
+    regEx.IgnoreCase = False ' Preserve case of "Figure" or "Table"
+
+    ' Match:
+    ' (Figure 1), [Table 2], Figure 3, Table 4, etc.
+    regEx.Pattern = "(\(Figure\s\d+(?:\s*,\s*\d+)*\)|\(figure\s\d+(?:\s*,\s*\d+)*\)|" & _
+                    "\[Figure\s\d+(?:\s*,\s*\d+)*\]|\[figure\s\d+(?:\s*,\s*\d+)*\]|" & _
+                    "\(Table\s\d+(?:\s*,\s*\d+)*\)|\(table\s\d+(?:\s*,\s*\d+)*\)|" & _
+                    "\[Table\s\d+(?:\s*,\s*\d+)*\]|\[table\s\d+(?:\s*,\s*\d+)*\]|" & _
+                    "Figure\s\d+(?:\s*,\s*\d+)*|figure\s\d+(?:\s*,\s*\d+)*|" & _
+                    "Table\s\d+(?:\s*,\s*\d+)*|table\s\d+(?:\s*,\s*\d+)*)"
+
+    For Each para In ActiveDocument.Paragraphs
+        Set matches = regEx.Execute(para.Range.text)
+
+        If matches.Count > 0 Then
+            For i = matches.Count - 1 To 0 Step -1
+                Set matchItem = matches(i)
+                matchStart = matchItem.FirstIndex
+                matchLen = matchItem.Length
+
+                Set matchRange = para.Range.Duplicate
+                matchRange.Start = para.Range.Start + matchStart
+                matchRange.End = matchRange.Start + matchLen
+
+                originalText = matchRange.text
+
+                ' If wrapped in () or []
+                If (Left(originalText, 1) = "(" And Right(originalText, 1) = ")") Or _
+                   (Left(originalText, 1) = "[" And Right(originalText, 1) = "]") Then
+
+                    referenceText = Mid(originalText, 2, Len(originalText) - 2) ' Strip () or []
+                    matchRange.text = "[" & Trim(referenceText) & "]"
+                    matchRange.Font.Bold = False
+
+                Else
+                    ' Only remove bold, keep text as-is
+                    matchRange.Font.Bold = False
+                End If
+            Next i
+        End If
+    Next para
+
+    MsgBox "Figure and Table references normalized and bold removed where needed."
+End Sub
+
+
+Sub ItalicizeEtAl()
+    With ActiveDocument.content.Find
+        .ClearFormatting
+        .text = "et al"
+        .MatchCase = False
+        .MatchWholeWord = True
+        .replacement.ClearFormatting
+        .replacement.Font.Italic = True
+        .replacement.text = "et al"
+        .Execute Replace:=wdReplaceAll
+    End With
+    MsgBox """et al"" has been italicized throughout the document."
+End Sub
+Sub RemoveReferenceIssueNo()
+    Dim para As Paragraph
+    Dim inReferences As Boolean
+    Dim re As Object
+    Dim match As Object
+    Dim paraRange As Range
+    Dim rawText As String
+
+    ' Create RegExp to match volume(issue): pattern
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.IgnoreCase = True
+    re.Pattern = "(\d+)\(\d+\):"  ' e.g., 91(2): ? 91:
+
+    inReferences = False
+
+    For Each para In ActiveDocument.Paragraphs
+        rawText = Trim(Replace(para.Range.text, vbCr, ""))
+
+        ' Start processing after "References"
+        If LCase(rawText) = "references" Then
+            inReferences = True
+        ElseIf inReferences Then
+            ' Skip empty lines
+            If rawText = "" Then
+                ' do nothing, stay in loop
+            ElseIf para.Range.ListFormat.ListType = wdListSimpleNumbering Or _
+                   para.Range.ListFormat.ListType = wdListNumberStyleArabic Then
+
+                Set paraRange = para.Range.Duplicate
+
+                ' Perform Find/Replace using RegExp matches
+                If re.Test(paraRange.text) Then
+                    For Each match In re.Execute(paraRange.text)
+                        With paraRange.Find
+                            .ClearFormatting
+                            .text = match.Value
+                            .replacement.text = re.Replace(match.Value, "$1:")
+                            .Forward = True
+                            .Wrap = wdFindStop
+                            .Execute Replace:=wdReplaceAll
+                        End With
+                    Next match
+                End If
+
+            Else
+                Exit For ' stop when references section ends
+            End If
+        End If
+    Next para
+
+    MsgBox "Issue numbers removed and numbering preserved.", vbInformation
+End Sub
+Sub InsertImagesAboveFigureLegends()
+    Dim dlg As fileDialog
+    Dim selectedImages() As String
+    Dim para As Paragraph
+    Dim figIndex As Integer
+    Dim inserted As Integer
+    Dim rng As Range
+    Dim foundLegends As Boolean
+    Dim paraText As String
+    Dim i As Integer
+
+    ' Prompt user to select images
+    Set dlg = Application.fileDialog(msoFileDialogFilePicker)
+    With dlg
+        .title = "Select Images for Figures"
+        .AllowMultiSelect = True
+        .Filters.Clear
+        .Filters.Add "Image Files", "*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.tif;*.tiff"
+
+        If .Show <> -1 Then
+            MsgBox "No images selected.", vbInformation
+            Exit Sub
+        End If
+
+        ReDim selectedImages(1 To .SelectedItems.Count)
+        For i = 1 To .SelectedItems.Count
+            selectedImages(i) = .SelectedItems(i)
+        Next i
+    End With
+    
+    figIndex = 1
+    inserted = 0
+    foundLegends = False
+    For Each para In ActiveDocument.Paragraphs
+        paraText = Trim(LCase(Replace(para.Range.text, vbCr, "")))
+
+        If Not foundLegends Then
+            If paraText = "legends of figures" Then
+                foundLegends = True
+            End If
+            GoTo NextPara
+        End If
+
+        If paraText = "" Then GoTo NextPara
+
+        If Left(paraText, 6) = "figure" Then
+            If inserted < UBound(selectedImages) Then
+                Set rng = para.Range
+                rng.Collapse wdCollapseStart
+
+                ' Insert the image
+                ActiveDocument.InlineShapes.AddPicture _
+                    FileName:=selectedImages(inserted + 1), _
+                    LinkToFile:=False, _
+                    SaveWithDocument:=True, _
+                    Range:=rng
+
+                ' Move cursor after image and add paragraph
+                rng.Collapse wdCollapseEnd
+                rng.InsertParagraphAfter
+
+                inserted = inserted + 1
+            End If
+        Else
+            Exit For
+        End If
+
+NextPara:
+    Next para
+
+    MsgBox inserted & " image(s) inserted above figure legends.", vbInformation
+End Sub
+Sub ConvertH1TextToTitleCase()
+    Dim i As Long
+    Dim para As Paragraph
+    Dim fullText As String
+    Dim tag As String
+    Dim prefix As String
+    Dim afterTag As String
+
+    tag = "<H1>"
+
+    ' Loop backwards to prevent reflow issues
+    For i = ActiveDocument.Paragraphs.Count To 1 Step -1
+        Set para = ActiveDocument.Paragraphs(i)
+        fullText = Trim(para.Range.text)
+
+        ' Check if paragraph starts with <H1>
+        If LCase(Left(fullText, Len(tag))) = LCase(tag) Then
+            prefix = Mid(fullText, 1, Len(tag)) ' Keep the <H1> tag
+            afterTag = Mid(fullText, Len(tag) + 1) ' Text after <H1>
+            afterTag = StrConv(Trim(afterTag), vbProperCase) ' Title Case
+
+            ' Safely set updated text
+            para.Range.text = prefix & " " & afterTag
+        End If
+    Next i
+
+    MsgBox "Converted text after <H1> to Title Case.", vbInformation
+End Sub
+Sub ConvertToTimesNewRoman()
+    With ActiveDocument.content.Font
+        .Name = "Times New Roman"
+    End With
+    MsgBox "All text converted to Times New Roman.", vbInformation
+End Sub
+Sub RunAllDocumentMacros()
+    On Error GoTo HandleError
+
+    ' === Call each macro here ===
+    Call RemoveAllHighlighting
+    Call MoveSuperscriptCitationsAfterPeriodBlock
+    Call ConvertToTimesNewRoman
+    Call SortKeywordsPreserveLabelAndFont
+    Call NormalizeFigureReferencesMultiple
+    Call ConvertH1TextToTitleCase
+    Call ItalicizeEtAl
+    Call RemoveReferenceIssueNo
+    Call InsertImagesAboveFigureLegends
+    
+    
+    MsgBox "All macros ran successfully.", vbInformation
+    Exit Sub
+
+HandleError:
+    MsgBox "Error during macro execution: " & Err.Description, vbCritical
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

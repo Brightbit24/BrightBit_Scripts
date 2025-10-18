@@ -1,0 +1,10 @@
+<tables>
+  <table1>
+    <tr><tc>R1C1</tc><tc>R1C2</tc></tr>
+    <tr><tc>R2C1</tc><tc>R2C2</tc></tr>
+  </table1>
+  <table2>
+    <tr><tc>A1</tc><tc>A2</tc></tr>
+    <tr><tc>B1</tc><tc>B2</tc></tr>
+  </table2>
+</tables>
