@@ -693,7 +693,7 @@ from docx import Document
 
 
 def strip_heading_marker(text):
-    return re.sub(r'^<H[12]>\s*', '', text, flags=re.IGNORECASE)
+    return re.sub(r'^<H[123]>\s*', '', text, flags=re.IGNORECASE)
 
 
 def create_run_element(text, run):
@@ -852,7 +852,7 @@ def generate_article_structure_from_docx(docx_path):
         is_h2 = re.match(r'^<H2>', text, re.IGNORECASE)
         is_h3 = re.match(r'^<H3>', text, re.IGNORECASE)
 
-        if is_h1 or is_h2:
+        if is_h1 or is_h2 or is_h3:
             started = True
             para.text = strip_heading_marker(para.text)
 
